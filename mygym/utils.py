@@ -50,6 +50,8 @@ def env_creator(env_config, database: HistoricalDatabase = None):
     )
     return env
 
+def done_inf(dct):
+    return np.round(pd.DataFrame.from_dict(dct, orient='index').T, 1)
 
 def plot_per_episode(
         ticker,
@@ -60,7 +62,8 @@ def plot_per_episode(
         episode,
         done_info,
         done_info_eval,
-        manage_risk
+        manage_risk,
+        eval_data
 ):
     step_info_per_episode = step_info_per_episode[episode]
     step_info_per_eval_episode = step_info_per_eval_episode[episode]
@@ -108,9 +111,6 @@ def plot_per_episode(
         actions_train = pd.DataFrame(step_info_per_episode.__dict__['positions'], columns=['training'])
         actions_test = pd.DataFrame(step_info_per_eval_episode.__dict__['positions'], columns=['test'])
         return actions_train.value_counts(), actions_test.value_counts()
-
-    def done_inf(dct):
-        return np.round(pd.DataFrame.from_dict(dct, orient='index').T, 1)
 
     fig = plt.figure(constrained_layout=True, figsize=(10, 15))
     ax_dict = fig.subplot_mosaic(
@@ -167,7 +167,6 @@ def plot_per_episode(
         loc="center",
     )
     table.set_fontsize(6.5)
-    #table.scale(0.5, 1.1)
     ax_dict["C"].set_axis_off()
     ax_dict["C"].title.set_text("Satistics of agent's reward (PnL)")
 
@@ -186,6 +185,28 @@ def plot_per_episode(
     actions.columns = ['training', 'testing']
     actions.sort_values(by='training', inplace=True)
     actions.plot.barh(ax=ax_dict["G"], title="Count agent's position")
+
+    prices = eval_data.loc[step_info_per_eval_episode.dates].Close
+    plt.plot(prices)
+    short_ticks = []
+    long_ticks = []
+    neutral_ticks = []
+    last_position = None
+    for i, tick in enumerate(step_info_per_eval_episode.dates):
+        if step_info_per_eval_episode.positions[i] == "short" and last_position != 'short':
+            short_ticks.append(tick)
+            last_position = 'short'
+        elif step_info_per_eval_episode.positions[i] == "long" and last_position != 'long':
+            long_ticks.append(tick)
+            last_position = 'long'
+        elif step_info_per_eval_episode.positions[i] == "neutral" and last_position != 'neutral':
+            neutral_ticks.append(tick)
+            last_position = 'neutral'
+    plt.plot(short_ticks, prices[short_ticks], 'ro')
+    plt.plot(long_ticks, prices[long_ticks], 'go')
+    plt.plot(neutral_ticks, prices[neutral_ticks], 'wo')
+    plt.plot(ax=ax_dict["H"])
+    ax_dict['H'].title.set_text('Agent entry position through time on testing set')
 
     pdf_path = os.path.join("results", agent_name)
     os.makedirs(pdf_path, exist_ok=True)

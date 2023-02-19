@@ -1,7 +1,7 @@
 import abc
 import numpy as np
 from mygym.FinancialEnvironment import FinancialEnvironment
-from mygym.utils import plot_per_episode, plot_final
+from mygym.utils import plot_per_episode, plot_final, done_inf
 from collections import deque
 from pylab import plt, mpl
 from copy import deepcopy
@@ -52,8 +52,8 @@ class Agent(metaclass=abc.ABCMeta):
         self.step_info_per_eval_episode = deepcopy(self.step_info_per_episode)
         self.done_info = {'pnl': [], 'sharpe': [], 'aum': [], 'trades': [], 'depth': []}
         self.done_info_eval = deepcopy(self.done_info)
-        self.len_learn = None
-        self.len_val = None
+        self.len_learn = '?'
+        self.len_val = '?'
 
     def _set_seed_np(self):
         np.random.seed(self.seed)
@@ -131,14 +131,16 @@ class Agent(metaclass=abc.ABCMeta):
                 plot_per_episode(self.learn_env.ticker, self.get_name(),
                                  self.learn_env.step_size, self.step_info_per_episode,
                                  self.step_info_per_eval_episode, episode, self.done_info, self.done_info_eval,
-                                 self.learn_env.manage_risk)
+                                 self.learn_env.manage_risk, self.valid_env.database.data[self.valid_env.ticker])
                 print(f'Time elapsed for 10 episodes: {round((time.time() - start_) / 60, 3)} minutes')
                 start_ = time.time()
             if self.learning_agent and episode >= 50 and (episode - 1) % 50 == 0:
                 plot_final(self.done_info, self.done_info_eval, self.learn_env.ticker, self.get_name(),
                            self.learn_env.step_size, self.learn_env.manage_risk)
-            if self.learning_agent and episode > last_ep and (episode - 1) % 50 == 0:
+            if self.learning_agent and episode > last_ep and (episode - 1) % 10 == 0:
                 self._save_args(episode)
+        best_info_eval = done_inf(self.done_info_eval).sort_values('pnl', ascending=False).iloc[:10]
+        print(f'Top 10 episodes on testing according to maximal cumulative reward (PnL):\n  {best_info_eval.to_string()}')
         print(f'Total time elapsed: {round((time.time() - start) / 3600, 3)} hours')
 
     def _validate(self, episode: int):
@@ -171,15 +173,15 @@ class Agent(metaclass=abc.ABCMeta):
                 print(50 * '*')
                 print(f'           Training of {self.get_name()}      ')
                 print(f'    Start of trading: {self.learn_env.start_of_trading} ')
-                success = True if self.learn_env.end_of_trading <= self.learn_env.state.now_is else False
-                if self.len_learn is None: self.len_learn = bar if success else '?'
+                success = (self.learn_env.end_of_trading <= self.learn_env.state.now_is)
+                if success: self.len_learn = bar
                 print(templ.format(episode, self.episodes, bar, self.len_learn, self.epsilon,
                                    info.pnls[-1], info.sharpe, info.n_trades, info.aums[-1], success))
             else:
                 print(f'          Validation of {self.get_name()}      ')
                 print(f'    Start of trading: {self.valid_env.start_of_trading} ')
-                success = True if self.valid_env.end_of_trading <= self.valid_env.state.now_is else False
-                if self.len_val is None: self.len_val = bar if success else '?'
+                success = (self.valid_env.end_of_trading <= self.valid_env.state.now_is)
+                if success: self.len_val = bar
                 print(templ.format(episode, self.episodes, bar, self.len_val, self.epsilon,
                                    info.pnls[-1], info.sharpe, info.n_trades, info.aums[-1], success))
                 print(50 * '*')
@@ -203,9 +205,10 @@ class Agent(metaclass=abc.ABCMeta):
         self.model = model_agent
 
     def _delete_earlier_args(self, path, episode):
-        files = os.listdir(path.replace('Episode' + str(episode), ''))
-        for f in files:
-            delete_filename = os.path.join(path.replace('Episode' + str(episode), f))
+        #keep only previous models
+        args_file = [d for d in os.listdir(path.replace('Episode' + str(episode), '')) if d.find('model')==-1]
+        for file in args_file:
+            delete_filename = os.path.join(path.replace('Episode' + str(episode), file))
             open(delete_filename, 'w').close()
             os.remove(delete_filename)
 

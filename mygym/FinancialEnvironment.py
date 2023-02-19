@@ -66,7 +66,7 @@ class FinancialEnvironment:
         next_state = self.state
         reward = self.per_step_reward_function.calculate(current_state, next_state)
         features = self.get_features()
-        if self.end_of_trading <= next_state.now_is or (self.aum_value < self.aum_threshold):
+        if self.end_of_trading <= next_state.now_is or (self.aum_value <= self.aum_threshold):
             done = True
         reward_market = (next_state.market.close - current_state.market.close) * self.volume_per_trade
         info = self.info_calculator.calculate(self.state, reward, reward_market, self.init_cash)
@@ -149,17 +149,18 @@ class FinancialEnvironment:
 
     def _update_portfolio(self, order):
         if order is None:
-            self.state.n_trades = 0
+            self.state.portfolio.n_trades += 0
         else:
             self.state.portfolio.entry_price = order.price
-            self.state.portfolio.n_trades = 2 if order.volume > self.volume_per_trade else 1
-            fees = self.state.portfolio.n_trades*self.trade_cost
+            last_trades = 2 if order.volume > self.volume_per_trade else 1
+            fees = last_trades*self.trade_cost
             if order.direction == "sell":
                 self.state.portfolio.inventory -= order.volume
                 self.state.portfolio.cash += order.volume * self.state.portfolio.entry_price - fees
             elif order.direction == "buy":
                 self.state.portfolio.inventory += order.volume
                 self.state.portfolio.cash -= order.volume * self.state.portfolio.entry_price + fees
+            self.state.portfolio.n_trades += last_trades
             self.state.portfolio.position = self._convert_inventory_to_position()
 
     def _manage_risks(self):

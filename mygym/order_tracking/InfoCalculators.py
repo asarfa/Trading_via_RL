@@ -21,7 +21,7 @@ class InfoCalculator:
 
     def calculate(self, internal_state: State, reward: float, reward_mkt: float, init_cash: float) -> pd.DataFrame:
         self.dates.append(internal_state.now_is)
-        self.n_trades += internal_state.portfolio.n_trades
+        self.n_trades = internal_state.portfolio.n_trades
         self.pnl += reward
         self.pnls.append(self.pnl)
         self.market_pnl += reward_mkt

@@ -24,7 +24,7 @@ class HistoricalDatabase:
         data = self.transform_data(data)
         self.start_date = data.index[0]
         self.end_date = data.index[-1]
-        print(f'Number of ticks per assets: {len(data)}')
+        print(f'Number of instances per asset: {len(data)}')
         self.data = dict(map(lambda tick: (tick, data[tick]), data.columns.levels[0]))
         self.calendar = list(data.index)
 
