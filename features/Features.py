@@ -58,10 +58,10 @@ class Feature(metaclass=abc.ABCMeta):
         return self.lookback_periods * self.update_frequency
 
     def normalise(self, value: float) -> float:
-        if value is not None:
+        if value is not np.nan:
             self.history.append(value)
         else:
-            return None
+            return np.nan
         return self.scalar.fit_transform(np.array(self.history).reshape(-1, 1))[-1]
 
     @abc.abstractmethod
@@ -111,7 +111,7 @@ class Returns(Feature):
     def _update(self, state: State) -> None:
         self.closes.appendleft(state.market.close)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             self.current_value = np.log(self.closes[0]/self.closes[-1])
 
@@ -139,7 +139,7 @@ class Direction(Feature):
     def _update(self, state: State) -> None:
         self.closes.appendleft(state.market.close)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             self.current_value = np.sign(self.closes[0] - self.closes[-1])
 
@@ -157,6 +157,7 @@ class Volatility(Feature):
         lookback_periods: int = 14*n_hours_trade_per_day,
         normalisation_on: bool = True,
     ):
+        name += '_' + str(lookback_periods)
         super().__init__(name, update_frequency, lookback_periods, normalisation_on)
         self.closes: deque = deque(maxlen=self.lookback_periods + 1)
 
@@ -167,7 +168,7 @@ class Volatility(Feature):
     def _update(self, state: State) -> None:
         self.closes.append(state.market.close)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             pct_returns = np.log(np.array(self.closes)[-1:] / np.array(self.closes)[1:])
             self.current_value = np.std(pct_returns)
@@ -197,7 +198,7 @@ class RSI(Feature):
     def _update(self, state: State) -> None:
         self.closes.append(state.market.close)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             pct_returns = np.log(np.array(self.closes)[-1:] / np.array(self.closes)[1:])
             if np.any(np.where(pct_returns > 0)[0]) and np.any(np.where(pct_returns < 0)[0]):
@@ -215,7 +216,7 @@ class EWMA(Feature):
 
     def __init__(
         self,
-        name: str = "MACD",
+        name: str = "EWMA",
         update_frequency: timedelta = timedelta(hours=1),
         lookback_periods: int = 7 * n_hours_trade_per_day,
         normalisation_on: bool = True,
@@ -230,7 +231,7 @@ class EWMA(Feature):
     def _update(self, state: State) -> None:
         self.closes.append(state.market.close)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             self.current_value = pd.Series(self.closes).ewm(span=self.lookback_periods, adjust=False, min_periods=self.lookback_periods).mean().values[-1]
 
@@ -257,7 +258,7 @@ class MACD(Feature):
     def _update(self, state: State) -> None:
         self.closes.append(state.market.close)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             k = pd.Series(self.closes).ewm(span=12*n_hours_trade_per_day, adjust=False, min_periods=12*n_hours_trade_per_day).mean().values[-1]
             d = pd.Series(self.closes).ewm(span=26*n_hours_trade_per_day, adjust=False, min_periods=26*n_hours_trade_per_day).mean().values[-1]
@@ -292,7 +293,7 @@ class ATR(Feature):
         self.highs.append(state.market.high)
         self.lows.append(state.market.low)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             mami = np.array(self.highs) - np.array(self.lows)
             mac = np.abs(np.array(self.highs) - np.concatenate((np.full(1, np.nan), np.array(self.closes)[:-1])))
@@ -330,13 +331,13 @@ class STOCH(Feature):
         self.highs.append(state.market.high)
         self.lows.append(state.market.low)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             maxi = np.max(np.array(self.highs))
             mini = np.min(np.array(self.lows))
             slowk = (np.array(self.closes) - mini)*100/(maxi-mini)
             slowd = np.mean(slowk[-3*n_hours_trade_per_day:])
-            self.current_value = slowd - slowk
+            self.current_value = slowd - slowk[-1]
 
 
 class WilliamsR(Feature):
@@ -367,7 +368,7 @@ class WilliamsR(Feature):
         self.highs.append(state.market.high)
         self.lows.append(state.market.low)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             maxi = np.max(np.array(self.highs))
             mini = np.min(np.array(self.lows))
@@ -401,11 +402,11 @@ class OBV(Feature):
         self.closes.appendleft(state.market.close)
         self.volumes.appendleft(state.market.volume)
         if len(self.obvs) == 0 and len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.obvs) == 0 and len(self.closes) == self.lookback_periods:
             obvs = 0 + np.nan_to_num(np.sign(self.closes[0]-self.closes[-1]))*self.volumes[0]
             self.obvs.append(obvs)
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.obvs) == 1 and len(self.closes) == self.lookback_periods:
             self.obvs[0] += np.nan_to_num(np.sign(self.closes[0]-self.closes[-1]))*self.volumes[0]
             self.current_value = self.obvs[0]
@@ -442,7 +443,7 @@ class ChaikinFlow(Feature):
         self.closes.append(state.market.close)
         self.volumes.append(state.market.volume)
         if len(self.closes) < self.lookback_periods:
-            self.current_value = None
+            self.current_value = np.nan
         elif len(self.closes) >= self.lookback_periods:
             mfv = np.sum(np.array(self.volumes) * (2*np.array(self.closes)-np.array(self.highs)-np.array(self.lows))/(np.array(self.highs)-np.array(self.lows)))
             self.current_value = mfv/np.sum(np.array(self.volumes))

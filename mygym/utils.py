@@ -208,9 +208,9 @@ def plot_per_episode(
     plt.plot(ax=ax_dict["H"])
     ax_dict['H'].title.set_text('Agent entry position through time on testing set')
 
-    pdf_path = os.path.join("results", agent_name)
+    pdf_path = os.path.join("results", agent_name, ticker)
     os.makedirs(pdf_path, exist_ok=True)
-    subname = name.replace('\n', '').replace(' ', '_').replace(':', '').replace('|','')
+    subname = name.replace(ticker, '').replace('\n', '').replace(' ', '_').replace(':', '').replace('|','')
     pdf_filename = os.path.join(pdf_path, f"Ep_{episode}_{subname}.jpg")
     # Write plot to pdf
     fig.savefig(pdf_filename)
@@ -238,8 +238,8 @@ def plot_final(
     )
     name = f"{ticker} - {agent_name}\n step size: {step_size.seconds//3600}h | reward: PnL with trading fees | managing risk: {manage_risk}\n"
     plt.suptitle(name)
-    pdf_path = os.path.join("results", agent_name)
-    subname = name.replace('\n', '').replace(' ', '_').replace(':', '').replace('|', '')
+    pdf_path = os.path.join("results", agent_name, ticker)
+    subname = name.replace(ticker, '').replace('\n', '').replace(' ', '_').replace(':', '').replace('|','')
     pdf_filename = os.path.join(pdf_path, f"final_{subname}.pdf")
 
     metrics = ['pnl', 'sharpe', 'trades', 'depth']

@@ -78,11 +78,11 @@ class FinancialEnvironment:
         self._update_features()
 
     def _get_features(self) -> np.ndarray:
-        return np.array([feature.current_value for feature in self.features], dtype=object).squeeze()
+        return np.array([feature.current_value for feature in self.features]).squeeze()
 
     def get_features(self) -> np.ndarray:
         if self.n_lags_feature == 0:
-            return np.array(self._get_features(), dtype=float)
+            return self._get_features()
         else:
             self.lags_feature[:-1] = self.lags_feature[1:]
             self.lags_feature[-1] = self._get_features()

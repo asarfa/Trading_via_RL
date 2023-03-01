@@ -10,7 +10,7 @@ Environment : Financial market
 State : All relevant parameters that describe the current state of the environment
 this include historical price levels and financial indicators
 
-Agent : Represent a trader placing bets on rising or falling markets
+Agent : Represents a trader placing bets on rising or falling markets
 
 Action: Going long, neutral or short
 
