@@ -132,8 +132,8 @@ class Utils:
     @staticmethod
     def find_last_episode(path):
         try:
-            last_ep = int([f for f in os.listdir(path)][-1].split('_')[0].replace('Episode', ''))
-        except IndexError:
+            last_ep = max([int(f.split('_')[0].replace('Episode', '')) for f in os.listdir(path)])
+        except ValueError:
             last_ep = 0
         return last_ep
 

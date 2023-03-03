@@ -29,7 +29,7 @@ if __name__ == '__main__':
     """
     With LSTM network agent as DQN
     """
-    lags = 7*5 #7hours of trading per day, 5 business day in a week --> results in lags over the week
+    lags = 7*5 #7hours of trading per day, 5 business day in a week --> results in 35 lags
     parser = argparse.ArgumentParser(description="")
     add_env_args(parser, step_size_in_hour, tickers[0], dates, lags, manage_risk=False)
     args = vars(parser.parse_args())
