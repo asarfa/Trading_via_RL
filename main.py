@@ -27,18 +27,17 @@ if __name__ == '__main__':
     agent.learn()
 
     """
-    With LSTM network agent as DQN
+    Evaluate on new tickers
     """
-    lags = 7*5 #7hours of trading per day, 5 business day in a week --> results in 35 lags
-    parser = argparse.ArgumentParser(description="")
-    add_env_args(parser, step_size_in_hour, tickers[0], dates, lags, manage_risk=False)
-    args = vars(parser.parse_args())
+    for ticker in tickers[1:]:
+        #dates[2] = dates[0]
+        parser = argparse.ArgumentParser(description="")
+        add_env_args(parser, step_size_in_hour, ticker, dates, lags=0, manage_risk=False)
+        args = vars(parser.parse_args())
 
-    train_env_config, eval_env_config = get_env_configs(args)
-    train_env = env_creator(train_env_config, database)
-    eval_env = env_creator(eval_env_config, database)
-    agent = LstmAgent(train_env, eval_env)
-    agent.learn()
+        _, eval_env_config = get_env_configs(args)
+        eval_env = env_creator(eval_env_config, database)
+        agent.evaluate(eval_env)
 
 
     """

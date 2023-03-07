@@ -34,8 +34,8 @@ class Net:
     def __instantiate_model(self, model):
         self.model = Utils.to_device(model, self.device)
 
-    def set(self, path):
-        last_episode = Utils.find_last_episode(path.replace('EpisodeNone', ''))
+    def set(self, path, episode: int = 0):
+        last_episode = Utils.find_last_episode(path.replace('EpisodeNone', '')) if episode==0 else episode
         self.path = path.replace('None', str(last_episode)) + '_model'
         self.model, self.optimizer = Utils.load(self.model, self.optimizer, self.path, self.device)
         return last_episode

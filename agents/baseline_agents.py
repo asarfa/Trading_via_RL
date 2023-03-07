@@ -16,9 +16,9 @@ class RandomAgent(Agent):
     def __init__(
             self,
             learn_env: FinancialEnvironment = None,
-            valid_env: FinancialEnvironment = None,
+            test_env: FinancialEnvironment = None,
     ):
-        super().__init__(learn_env, valid_env, False)
+        super().__init__(learn_env, test_env, False)
 
     def replay(self):
         pass
@@ -35,9 +35,9 @@ class FixedActionAgent(Agent):
             self,
             fixed_action: int = None,
             learn_env: FinancialEnvironment = None,
-            valid_env: FinancialEnvironment = None
+            test_env: FinancialEnvironment = None
     ):
-        super().__init__(learn_env, valid_env, False)
+        super().__init__(learn_env, test_env, False)
         self.fixed_action = fixed_action
 
     def replay(self):
@@ -54,7 +54,7 @@ class BaseDQN(Agent):
     def __init__(
             self,
             learn_env: FinancialEnvironment = None,
-            valid_env: FinancialEnvironment = None,
+            test_env: FinancialEnvironment = None,
             episodes: int = 1000,
             epsilon: float = 0.99,
             epsilon_min: float = 0.01,
@@ -62,7 +62,7 @@ class BaseDQN(Agent):
             gamma: float = 0.97,
             batch_size: int = 512,
     ):
-        super().__init__(learn_env, valid_env, True, episodes, epsilon, epsilon_min, epsilon_decay, gamma, batch_size)
+        super().__init__(learn_env, test_env, True, episodes, epsilon, epsilon_min, epsilon_decay, gamma, batch_size)
         self._set_seed_rand()
 
     def _set_seed_rand(self):
@@ -109,14 +109,14 @@ class DnnAgent(BaseDQN):
     def __init__(
             self,
             learn_env: FinancialEnvironment = None,
-            valid_env: FinancialEnvironment = None,
+            test_env: FinancialEnvironment = None,
             hidden_dim: int = 256,
             n_hidden: int = 1,
             lr: float = 0.001,
             dropout: float = 0.2
 
     ):
-        super().__init__(learn_env, valid_env)
+        super().__init__(learn_env, test_env)
         self._set_model(hidden_dim, n_hidden, lr, dropout)
 
     def get_name(self):
@@ -141,13 +141,13 @@ class LstmAgent(BaseDQN):
     def __init__(
             self,
             learn_env: FinancialEnvironment = None,
-            valid_env: FinancialEnvironment = None,
+            test_env: FinancialEnvironment = None,
             hidden_dim: int = 256,
             n_hidden: int = 1,
             lr: float = 0.001,
             dropout: float = 0.2
     ):
-        super().__init__(learn_env, valid_env)
+        super().__init__(learn_env, test_env)
         self._set_model(hidden_dim, n_hidden, lr, dropout)
 
     def get_name(self):

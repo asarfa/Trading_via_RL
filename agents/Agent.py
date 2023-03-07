@@ -31,7 +31,7 @@ class Agent(metaclass=abc.ABCMeta):
     def __init__(
             self,
             learn_env: FinancialEnvironment = None,
-            valid_env: FinancialEnvironment = None,
+            test_env: FinancialEnvironment = None,
             learning_agent: bool = None,
             episodes: int = None,
             epsilon: float = None,
@@ -42,7 +42,7 @@ class Agent(metaclass=abc.ABCMeta):
             seed: int = 42
     ):
         self.learn_env = learn_env
-        self.valid_env = valid_env
+        self.test_env = test_env
         self.learning_agent = learning_agent
         self.episodes = episodes
         self.seed = seed
@@ -53,7 +53,7 @@ class Agent(metaclass=abc.ABCMeta):
         self.done_info = {'pnl': [], 'sharpe': [], 'aum': [], 'trades': [], 'depth': []}
         self.done_info_eval = deepcopy(self.done_info)
         self.len_learn = '?'
-        self.len_val = '?'
+        self.len_eval = '?'
 
     def _set_seed_np(self):
         np.random.seed(self.seed)
@@ -71,7 +71,7 @@ class Agent(metaclass=abc.ABCMeta):
         else:
             self.episodes = 1
             self.epsilon = 0 #useless just for verbose
-            self.learn_env.aum_threshold = self.valid_env.aum_threshold = -1e8
+            self.learn_env.aum_threshold = self.test_env.aum_threshold = -np.inf
 
     @property
     def actions(self):
@@ -95,17 +95,12 @@ class Agent(metaclass=abc.ABCMeta):
         return self.get_action(state)
 
     def _play_one_step(self, state: np.ndarray):
-        """
-        Method to play with the action at each step
-        Each step of is composed of 3 elements: a state, the resulting reward, and finally a Boolean indicating
-        whether the episode ended at that point (done = True)
-        """
         state = state.copy()
         action = self._greedy_policy(state) if self.learning_agent else self.get_action(state)
-        next_state, reward, done, info = self.learn_env.step(action)# get the resulting state and reward
+        next_state, reward, done, info = self.learn_env.step(action)
         if self.learning_agent:
             self.memory.append(
-                [state, action, reward, next_state, done]) # Storing the resulting experience in the replay buffer
+                [state, action, reward, next_state, done])
         return next_state, done
 
     @abc.abstractmethod
@@ -113,9 +108,8 @@ class Agent(metaclass=abc.ABCMeta):
         pass
 
     def learn(self):
-        start = time.time()
+        start, start_ = time.time(), time.time()
         last_ep = self._set_args()
-        start_ = time.time()
         for episode in range(last_ep, self.episodes + 1):
             state = self.learn_env.reset()
             while self.learn_env.end_of_trading >= self.learn_env.state.now_is:
@@ -124,36 +118,38 @@ class Agent(metaclass=abc.ABCMeta):
                     self.step_info_per_episode[episode] = self.learn_env.info_calculator
                     self._compute_done(self.step_info_per_episode, episode, self.done_info)
                     break
-            self._validate(episode)
+            self._evaluate(episode)
+            if self.learning_agent and episode >= last_ep:
+                self._save_args(episode)
             if self.learning_agent and len(self.memory) > self.batch_size:
                 self.replay()
             if (episode - 1) % 10 == 0:
                 plot_per_episode(self.learn_env.ticker, self.get_name(),
                                  self.learn_env.step_size, self.step_info_per_episode,
                                  self.step_info_per_eval_episode, episode, self.done_info, self.done_info_eval,
-                                 self.learn_env.manage_risk, self.valid_env.database.data[self.valid_env.ticker])
+                                 self.learn_env.manage_risk, self.test_env.database.data[self.test_env.ticker])
                 print(f'Time elapsed for 10 episodes: {round((time.time() - start_) / 60, 3)} minutes')
                 start_ = time.time()
-            if self.learning_agent and episode >= 50 and (episode - 1) % 50 == 0:
+            if self.learning_agent and episode >= 50 and (episode - 1) % 10 == 0:
                 plot_final(self.done_info, self.done_info_eval, self.learn_env.ticker, self.get_name(),
                            self.learn_env.step_size, self.learn_env.manage_risk)
-            if self.learning_agent and episode > last_ep and (episode - 1) % 10 == 0:
-                self._save_args(episode)
         best_info_eval = done_inf(self.done_info_eval).sort_values('pnl', ascending=False).iloc[:10]
         print(f'Top 10 episodes on testing according to maximal cumulative reward (PnL):\n  {best_info_eval.to_string()}')
+        self._set_best_ep()
+        self.evaluate(self.test_env)
         print(f'Total time elapsed: {round((time.time() - start) / 3600, 3)} hours')
 
-    def _validate(self, episode: int):
+    def _evaluate(self, episode: int):
         """
         Method to validate the performance of the DQL agent.
         only relies on the exploitation of the currently optimal policy
         """
-        state = self.valid_env.reset()
-        while self.valid_env.end_of_trading >= self.valid_env.state.now_is:
+        state = self.test_env.reset()
+        while self.test_env.end_of_trading >= self.test_env.state.now_is:
             action = self.get_action(state)
-            state, reward, done, info = self.valid_env.step(action)
+            state, reward, done, info = self.test_env.step(action)
             if done:
-                self.step_info_per_eval_episode[episode] = self.valid_env.info_calculator
+                self.step_info_per_eval_episode[episode] = self.test_env.info_calculator
                 self._compute_done(self.step_info_per_eval_episode, episode, self.done_info_eval)
                 break
 
@@ -178,11 +174,11 @@ class Agent(metaclass=abc.ABCMeta):
                 print(templ.format(episode, self.episodes, bar, self.len_learn, self.epsilon,
                                    info.pnls[-1], info.sharpe, info.n_trades, info.aums[-1], success))
             else:
-                print(f'          Validation of {self.get_name()}      ')
-                print(f'    Start of trading: {self.valid_env.start_of_trading} ')
-                success = (self.valid_env.end_of_trading <= self.valid_env.state.now_is)
-                if success: self.len_val = bar
-                print(templ.format(episode, self.episodes, bar, self.len_val, self.epsilon,
+                print(f'          Evaluation of {self.get_name()}      ')
+                print(f'    Start of trading: {self.test_env.start_of_trading} ')
+                success = (self.test_env.end_of_trading <= self.test_env.state.now_is)
+                if success: self.len_eval = bar
+                print(templ.format(episode, self.episodes, bar, self.len_eval, self.epsilon,
                                    info.pnls[-1], info.sharpe, info.n_trades, info.aums[-1], success))
                 print(50 * '*')
 
@@ -225,4 +221,30 @@ class Agent(metaclass=abc.ABCMeta):
         else:
             last_ep = 0
         return last_ep + 1 #to not redo the same ep
+
+    def _set_best_ep(self):
+        """
+        After learn() has been called over the 1000 episodes (self.episode), set the current model to the best one
+        """
+        if self.learning_agent:
+            path = self._get_path()
+            best_ep = done_inf(self.done_info_eval).sort_values('pnl', ascending=False).index[0]
+            print(f'Set the current model to that of the best episode i.e. the one with the maximum PnL on the test set --> ({best_ep}) ')
+            _ = self.model.set(path, best_ep)
+
+    def evaluate(self, test_env: FinancialEnvironment):
+        self.test_env = test_env
+        self.test_env.aum_threshold = -np.inf
+        print('------------------------------------------------------------------------')
+        print(f'----------------Evaluation of {self.test_env.ticker}------------------')
+        print('------------------------------------------------------------------------')
+        self.done_info_eval = {'pnl': [], 'sharpe': [], 'aum': [], 'trades': [], 'depth': []}
+        self.step_info_per_eval_episode = dict(map(lambda i: (i, None), range(1, self.episodes + 1)))
+        episode = 1
+        self._evaluate(episode)
+        plot_per_episode(self.test_env.ticker, self.get_name(),
+                         self.test_env.step_size, None,
+                         self.step_info_per_eval_episode, episode, None, self.done_info_eval,
+                         self.learn_env.manage_risk, self.test_env.database.data[self.test_env.ticker])
+
 
